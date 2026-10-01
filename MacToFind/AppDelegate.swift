@@ -314,7 +314,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SCStreamDelegate, SCStreamOu
         statusMenu?.items.last?.keyEquivalentModifierMask = [.command, .shift]
         statusMenu?.items.last?.target = self
         
-        statusMenu?.addItem(NSMenuItem(title: "Circle to Search", action: #selector(circleToSearchFromMenu), keyEquivalent: "space"))
+        statusMenu?.addItem(NSMenuItem(title: "Circle to Search", action: #selector(circleToSearchFromMenu), keyEquivalent: " "))
         statusMenu?.items.last?.keyEquivalentModifierMask = [.command, .shift]
         statusMenu?.items.last?.target = self
         
