@@ -1,0 +1,151 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g., 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+jobs:
+  build:
+    name: Build MacToFind
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+
+    - name: Show build environment
+      run: |
+        echo "macOS version:"
+        sw_vers
+        echo "Xcode version:"
+        xcodebuild -version
+        echo "Swift version:"
+        swift --version
+
+    - name: Build Archive
+      run: |
+        xcodebuild -project MacToFind.xcodeproj \
+          -scheme MacToFind \
+          -configuration Release \
+          -archivePath build/MacToFind.xcarchive \
+          -destination "platform=macOS" \
+          clean archive
+
+    - name: Export App
+      run: |
+        # Create export options
+        cat > build/ExportOptions.plist <<EOF
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>method</key>
+            <string>development</string>
+            <key>teamID</key>
+            <string></string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>compileBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <false/>
+            <key>signingStyle</key>
+            <string>automatic</string>
+        </dict>
+        </plist>
+        EOF
+
+        xcodebuild -exportArchive \
+          -archivePath build/MacToFind.xcarchive \
+          -exportPath build/Export \
+          -exportOptionsPlist build/ExportOptions.plist
+
+    - name: Create DMG
+      run: |
+        # Setup DMG contents
+        mkdir -p build/dmg
+        cp -R build/Export/MacToFind.app build/dmg/
+        ln -s /Applications build/dmg/Applications
+
+        # Get version
+        VERSION="${{ github.event.inputs.version || github.ref_name }}"
+        VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+
+        # Create DMG
+        hdiutil create -volname "MacToFind" \
+          -srcfolder build/dmg \
+          -ov \
+          -format UDZO \
+          "build/MacToFind-${VERSION}.dmg"
+
+        # Also create a version without version number for consistent download link
+        cp "build/MacToFind-${VERSION}.dmg" "build/MacToFind.dmg"
+
+    - name: Create ZIP
+      run: |
+        cd build/Export
+        zip -r ../MacToFind.zip MacToFind.app
+        cd ../..
+
+    - name: Upload DMG Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacToFind-dmg
+        path: build/*.dmg
+
+    - name: Upload ZIP Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacToFind-zip
+        path: build/MacToFind.zip
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          build/MacToFind*.dmg
+          build/MacToFind.zip
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        body: |
+          ## 🚀 MacToFind Release
+
+          ### Installation Instructions
+
+          #### Option 1: DMG (Recommended)
+          1. Download `MacToFind.dmg`
+          2. Open the DMG file
+          3. Drag MacToFind to your Applications folder
+          4. Launch MacToFind from Applications
+          5. On first launch, you'll be guided to set up your Gemini API key
+
+          #### Option 2: ZIP
+          1. Download `MacToFind.zip`
+          2. Extract the ZIP file
+          3. Move MacToFind.app to your Applications folder
+          4. Launch MacToFind from Applications
+
+          ### ⚠️ First Launch
+          - macOS will ask for Screen Recording permission
+          - You'll need to provide your own Gemini API key
+          - Get a free key at: https://makersuite.google.com/app/apikey
+
+          ### Requirements
+          - macOS 14.0 (Sonoma) or later
+          - Internet connection for AI features
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
