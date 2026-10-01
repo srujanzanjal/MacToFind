@@ -12,7 +12,7 @@ struct SettingsView: View {
     @EnvironmentObject var hotkeyManager: HotkeyManager
     @StateObject private var geminiService = GeminiService()
     
-    @AppStorage("gemini_api_key") private var geminiAPIKey: String = ""
+    @State private var geminiAPIKey = KeychainStore.geminiAPIKey
     @AppStorage("gemini_model") private var selectedModel: String = "gemini-2.5-flash"
     @AppStorage("clipboard_monitoring") private var clipboardMonitoring: Bool = false
     @AppStorage("hotkey_enabled") private var hotkeyEnabled: Bool = true
@@ -33,6 +33,9 @@ struct SettingsView: View {
                 showAPIKey: $showAPIKey,
                 tempAPIKey: $tempAPIKey
             )
+            .onChange(of: geminiAPIKey) { _, newKey in
+                KeychainStore.geminiAPIKey = newKey
+            }
             .tabItem {
                 Label("AI", systemImage: "sparkles")
             }

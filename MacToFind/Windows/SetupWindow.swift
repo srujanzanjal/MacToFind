@@ -187,8 +187,7 @@ final class SetupCoordinator {
                 validationMessage = "Fetching available models..."
                 availableModels = await validator.getAvailableModels(apiKey)
 
-                // Save to UserDefaults
-                UserDefaults.standard.set(apiKey, forKey: "gemini_api_key")
+                KeychainStore.geminiAPIKey = apiKey
                 UserDefaults.standard.set(selectedModel, forKey: "gemini_model")
 
                 validationSuccess = true

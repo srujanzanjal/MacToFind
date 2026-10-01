@@ -163,7 +163,7 @@ MacToFind was designed under a strict **Zero-Telemetry, Local-First** philosophy
 | **Screen Pixels** | ✅ Yes | ⚠️ Only when you use Ask Gemini | Google Gemini API (HTTPS) |
 | **OCR Text Extraction** | ✅ Yes | ❌ Never | Apple Neural Engine (On-Device) |
 | **Search Queries** | ✅ Yes | ⚠️ User-Initiated Only | Google Gemini API (HTTPS) |
-| **Gemini API Key** | ✅ Yes | Only to Google, as the request header | Stored locally in app preferences (UserDefaults, not Keychain) |
+| **Gemini API Key** | ✅ Yes | Only to Google, as the request header | macOS Keychain |
 | **Telemetry / Tracking** | ❌ None | ❌ None | Zero analytics or trackers |
 
 ---

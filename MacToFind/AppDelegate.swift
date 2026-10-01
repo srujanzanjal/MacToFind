@@ -22,6 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SCStreamDelegate, SCStreamOu
     var appState: AppState?
     var hotkeyManager: HotkeyManager?
     private var capturedImage: NSImage?
+    private var capturePointSize: NSSize = .zero
     private var captureStream: SCStream?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
@@ -33,7 +34,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SCStreamDelegate, SCStreamOu
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Check if API key is configured
-        let apiKey = UserDefaults.standard.string(forKey: "gemini_api_key") ?? ""
+        let apiKey = KeychainStore.geminiAPIKey
         if apiKey.isEmpty {
             // Show setup window for first-time configuration
             showSetupWindow()
@@ -194,9 +195,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SCStreamDelegate, SCStreamOu
     func showDrawingOverlay() {
         guard let appState = appState else { return }
         
-        // Preflight Screen Recording permission before touching overlay or attempting capture
+        // Preflight alone never registers the app in System Settings; Request does.
         guard CGPreflightScreenCaptureAccess() else {
-            showPermissionRequiredAlert()
+            if !CGRequestScreenCaptureAccess() {
+                showPermissionRequiredAlert()
+            }
             return
         }
         
@@ -361,27 +364,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, SCStreamDelegate, SCStreamOu
             // Get available content - using same method as QuickRecorder  
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
             
-            guard let display = content.displays.first else {
+            let screen = NSScreen.main
+            let mainID = (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+            guard let display = content.displays.first(where: { $0.displayID == mainID }) ?? content.displays.first else {
                 print("No displays found")
                 return false
             }
-            
-            print("Found \(content.displays.count) displays and \(content.windows.count) windows")
-            
-            // List all windows for debugging
-            for window in content.windows {
-                if let app = window.owningApplication {
-                    print("Window: \(window.title ?? "untitled") - App: \(app.applicationName) - Bundle: \(app.bundleIdentifier)")
-                }
-            }
-            
-            // Create filter to capture everything on display
+
             let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
-            
-            // Configure stream
+
+            // SCDisplay size is in points; capture in pixels so Retina crops stay sharp.
+            let scale = screen?.backingScaleFactor ?? 2
+            capturePointSize = NSSize(width: display.width, height: display.height)
             let configuration = SCStreamConfiguration()
-            configuration.width = Int(display.width)
-            configuration.height = Int(display.height)
+            configuration.width = Int(CGFloat(display.width) * scale)
+            configuration.height = Int(CGFloat(display.height) * scale)
             configuration.minimumFrameInterval = CMTime(value: 1, timescale: 1)
             configuration.pixelFormat = kCVPixelFormatType_32BGRA
             configuration.showsCursor = false
@@ -424,7 +421,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SCStreamDelegate, SCStreamOu
             let context = CIContext()
             
             if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
-                capturedImage = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+                capturedImage = NSImage(cgImage: cgImage, size: capturePointSize)
                 print("Successfully captured frame from stream")
             }
         }
@@ -461,10 +458,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, SCStreamDelegate, SCStreamOu
             case .userDeclined:
                 showPermissionRequiredAlert()
             default:
-                print("Stream error: \(error.localizedDescription)")
+                showCaptureFailedAlert(error)
             }
         } else {
-            showPermissionRequiredAlert()
+            showCaptureFailedAlert(error)
+        }
+    }
+
+    private func showCaptureFailedAlert(_ error: Error) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Screen Capture Failed"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
         }
     }
 }

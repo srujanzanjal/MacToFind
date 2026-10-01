@@ -274,6 +274,18 @@ struct SettingsSidebar: View {
                         }
                     }
                 }
+
+                Button {
+                    NSApp.terminate(nil)
+                } label: {
+                    Label("Quit MacToFind", systemImage: "power")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .keyboardShortcut("q")
             }
             .padding(.bottom, 20)
             .padding(.horizontal, 12)
@@ -670,7 +682,7 @@ struct AppearanceSettingsContent: View {
 }
 
 struct AIProviderSettingsContent: View {
-    @AppStorage("gemini_api_key") private var storedAPIKey: String = ""
+    @State private var storedAPIKey = KeychainStore.geminiAPIKey
     @State private var newAPIKey: String = ""
     @State private var isValidating: Bool = false
     @State private var validationMessage: String = ""
@@ -910,6 +922,7 @@ struct AIProviderSettingsContent: View {
                 if success {
                     // Save to UserDefaults
                     storedAPIKey = newAPIKey
+                    KeychainStore.geminiAPIKey = newAPIKey
 
                     validationMessage = "✅ API key saved successfully!"
                     isEditing = false
@@ -940,6 +953,7 @@ struct AIProviderSettingsContent: View {
 
     private func removeAPIKey() {
         storedAPIKey = ""
+        KeychainStore.geminiAPIKey = ""
         newAPIKey = ""
         isEditing = false
         validationMessage = "API key removed"
